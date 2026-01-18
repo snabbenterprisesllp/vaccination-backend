@@ -4,21 +4,26 @@ Production-ready backend API for Baby Immunization & Vaccination Records Managem
 
 ## 🚀 Overview
 
-A comprehensive vaccination tracking system for children aged 0-18 years, built with Python, FastAPI, and Google Cloud Platform. This API enables parents, hospitals, and administrators to manage vaccination records securely with ABHA integration.
+A comprehensive vaccination tracking and management system for both children (0-18 years) and adults, built with Python, FastAPI, and Google Cloud Platform. This API enables parents, hospitals, and administrators to manage vaccination records securely with ABHA integration, automated reminders, and a unified beneficiary system.
 
 ## ✨ Key Features
 
 ### Core Functionality
-- **User Authentication**: OAuth2 + JWT-based secure authentication
-- **Child Profiles**: Complete medical profiles with QR code access
-- **Vaccination Records**: Track all vaccines with hospital verification
-- **Vaccination Schedule**: Automated reminders for upcoming vaccines
-- **Vaccine Master Database**: India Universal Immunization + Private vaccines
-- **Hospital Management**: Government & private hospital registry
-- **Document Storage**: Secure cloud storage for vaccination cards & reports
-- **ABHA Integration**: Link with Ayushman Bharat Health Account
-- **Audit Logging**: Complete audit trail for compliance
-- **QR Code**: Quick access to child profiles via QR scanning
+- **Unified Beneficiary System**: Single system managing both ADULT (parents) and CHILD beneficiaries
+- **User Authentication**: OAuth2 + JWT-based secure authentication with TAB (Token-Based) hospital authentication
+- **Parent & Child Profiles**: Complete medical profiles for both adults and children with QR code access
+- **Vaccination Records**: Track all vaccines with hospital verification, vitals capture, and reaction tracking
+- **Vaccination Timeline**: Age-based timeline with status tracking (Administered, Due, Upcoming, Due Next) following WHO/Indian schedules
+- **Automated Reminders**: Scheduled vaccination reminders (7 days before, 1 day before, on due date, follow-up for missed)
+- **Vaccine Master Database**: India Universal Immunization Program (UIP) + Private vaccines with dosage schedules
+- **Vitals at Vaccination**: Capture temperature, weight, height, pulse rate, and oxygen saturation during vaccination
+- **Hospital Management**: Government & private hospital registry with user management
+- **Digital Document Locker**: Secure cloud storage for vaccination cards, birth certificates, discharge summaries, and medical reports organized by category
+- **Vaccine Education**: Parent-friendly educational content explaining vaccine importance and safety
+- **Vaccination Detail Pages**: Comprehensive views for each vaccination with edit, download, and share capabilities
+- **ABHA Integration**: Link with Ayushman Bharat Health Account (future-ready, no direct ABDM API calls)
+- **Audit Logging**: Complete audit trail for all operations with JSON-based change tracking
+- **QR Code System**: Quick access to beneficiary profiles via QR scanning
 
 ### Technical Features
 - **Async/Await**: High-performance async operations
@@ -165,42 +170,62 @@ vaccination-backend/
 │   ├── api/                    # API endpoints
 │   │   └── v1/
 │   │       ├── auth.py         # Authentication endpoints
+│   │       ├── auth_tabs.py    # TAB authentication for hospitals
+│   │       ├── otp_auth.py     # OTP-based authentication
+│   │       ├── beneficiaries.py # Unified beneficiary endpoints
 │   │       ├── children.py     # Child profile endpoints
 │   │       ├── vaccinations.py # Vaccination endpoints
 │   │       ├── vaccines.py     # Vaccine master endpoints
 │   │       ├── hospitals.py    # Hospital endpoints
 │   │       ├── documents.py    # Document endpoints
-│   │       └── abha.py         # ABHA integration endpoints
+│   │       ├── abha.py         # ABHA integration endpoints
+│   │       └── reminders.py    # Vaccination reminder endpoints
 │   ├── core/                   # Core configuration
 │   │   ├── config.py           # App settings
 │   │   ├── database.py         # Database connection
 │   │   ├── redis.py            # Redis client
 │   │   ├── security.py         # Auth & security
+│   │   ├── authorization.py    # Role-based authorization
 │   │   └── logging.py          # Logging setup
 │   ├── models/                 # SQLAlchemy models
 │   │   ├── user.py
+│   │   ├── beneficiary.py      # Unified beneficiary model
 │   │   ├── child_profile.py
 │   │   ├── vaccination.py
 │   │   ├── vaccine_master.py
 │   │   ├── hospital.py
+│   │   ├── hospital_user.py    # Hospital user model
 │   │   ├── document.py
 │   │   ├── abha_link.py
-│   │   └── audit_log.py
+│   │   ├── vaccination_reminder.py # Reminder models
+│   │   ├── audit_log.py
+│   │   └── login_audit.py      # Login audit tracking
 │   ├── schemas/                # Pydantic schemas
 │   │   ├── user.py
+│   │   ├── beneficiary.py      # Beneficiary schemas
 │   │   ├── child_profile.py
 │   │   ├── vaccination.py
 │   │   ├── vaccine_master.py
 │   │   ├── hospital.py
 │   │   ├── document.py
-│   │   └── abha.py
+│   │   ├── abha.py
+│   │   ├── reminder.py         # Reminder schemas
+│   │   └── otp.py              # OTP schemas
 │   ├── services/               # Business logic
 │   │   ├── auth_service.py
+│   │   ├── hospital_auth_service.py # Hospital authentication
+│   │   ├── otp_auth_service.py # OTP authentication
+│   │   ├── otp_service.py      # OTP generation/validation
+│   │   ├── beneficiary_service.py # Beneficiary management
 │   │   ├── child_profile_service.py
 │   │   ├── vaccination_service.py
-│   │   └── qr_service.py
+│   │   ├── vaccination_timeline_service.py # Timeline generation
+│   │   ├── vaccination_reminder_service.py # Reminder scheduling
+│   │   ├── qr_service.py
+│   │   └── token_service.py    # Token management
 │   ├── utils/                  # Utilities
 │   │   ├── gcs_client.py       # GCS operations
+│   │   ├── local_storage.py    # Local file storage
 │   │   └── audit_logger.py     # Audit logging
 │   └── main.py                 # Application entry point
 ├── alembic/                    # Database migrations
@@ -224,25 +249,35 @@ vaccination-backend/
 - `PUT /me` - Update current user
 - `POST /logout` - Logout user
 
+### Beneficiaries (`/api/v1/beneficiaries`)
+- `GET /parent/profile` - Get or create parent beneficiary
+- `GET /` - Get all beneficiaries for current user
+- `GET /children` - Get all child beneficiaries
+- `GET /{beneficiary_id}` - Get specific beneficiary
+- `PUT /{beneficiary_id}` - Update beneficiary profile
+- `GET /{beneficiary_id}/vaccinations` - Get beneficiary's vaccinations
+- `GET /{beneficiary_id}/vaccination-timeline` - Get age-based vaccination timeline
+- `GET /qr/{qr_token}` - Get profile by QR (public)
+
 ### Child Profiles (`/api/v1/children`)
-- `POST /` - Create child profile
+- `POST /` - Create child profile (auto-creates beneficiary)
 - `GET /` - Get all children for current user
 - `GET /{child_id}` - Get specific child
 - `PUT /{child_id}` - Update child profile
-- `DELETE /{child_id}` - Delete child profile
-- `POST /{child_id}/qr-code/regenerate` - Regenerate QR code
-- `GET /qr/{qr_token}` - Get profile by QR (public)
+- `DELETE /{child_id}` - Delete child profile (soft delete)
+- `GET /{child_id}/vaccination-timeline` - Get child's vaccination timeline
 
 ### Vaccinations (`/api/v1/vaccinations`)
-- `POST /` - Create vaccination record
-- `GET /child/{child_id}` - Get child's vaccinations
-- `GET /{vaccination_id}` - Get specific vaccination
-- `PUT /{vaccination_id}` - Update vaccination
-- `DELETE /{vaccination_id}` - Delete vaccination
+- `POST /` - Create vaccination record (supports both child_id and beneficiary_id)
+- `GET /` - Get all vaccinations (with filters)
+- `GET /{vaccination_id}` - Get specific vaccination with details
+- `PUT /{vaccination_id}` - Update vaccination record (including vitals)
+- `DELETE /{vaccination_id}` - Delete vaccination (soft delete)
 - `POST /schedule` - Create vaccination schedule
 - `GET /schedule/child/{child_id}` - Get child's schedules
 - `PUT /schedule/{schedule_id}` - Update schedule
 - `POST /vial-scan` - Scan vaccine vial barcode
+- **Vitals Support**: Temperature, weight, height, pulse rate, oxygen saturation at vaccination time
 
 ### Vaccine Master (`/api/v1/vaccines`)
 - `GET /` - List all vaccines (with filters)
@@ -258,18 +293,29 @@ vaccination-backend/
 - `PUT /{hospital_id}` - Update hospital
 
 ### Documents (`/api/v1/documents`)
-- `POST /upload` - Upload document
+- `POST /upload` - Upload document (requires child_id)
 - `GET /child/{child_id}` - Get child's documents
 - `GET /{document_id}` - Get specific document
 - `GET /{document_id}/download` - Get signed download URL
 - `DELETE /{document_id}` - Delete document
+- **Document Types**: Birth certificate, discharge summary, vaccination card, vaccine proof, medical reports, ABHA card, prescriptions, other
+
+### Vaccination Reminders (`/api/v1/reminders`)
+- `POST /beneficiaries/{beneficiary_id}/schedule` - Schedule reminders for all upcoming vaccinations
+- `GET /beneficiaries/{beneficiary_id}/upcoming` - Get upcoming reminders (within X days)
+- `GET /beneficiaries/{beneficiary_id}/next` - Get next upcoming reminder
+- `PUT /preferences/beneficiaries/{beneficiary_id}/vaccines/{vaccine_id}` - Update notification preferences
+- `GET /preferences/beneficiaries/{beneficiary_id}/vaccines/{vaccine_id}` - Get notification preferences
+- **Reminder Types**: 7 days before, 1 day before, on due date, 7 days after missed, birth dose reminders
+- **Notification Channels**: Push, SMS, Email (configurable per vaccine)
 
 ### ABHA Integration (`/api/v1/abha`)
-- `POST /link` - Link ABHA to child profile
-- `GET /child/{child_id}` - Get ABHA link
+- `POST /link` - Link ABHA to beneficiary profile
+- `GET /child/{child_id}` - Get ABHA link status
 - `POST /child/{child_id}/consent` - Update consent
-- `GET /profile/{abha_number}` - Get ABHA profile
+- `GET /profile/{abha_number}` - Get ABHA profile (future-ready)
 - `DELETE /child/{child_id}` - Unlink ABHA
+- **Note**: ABHA integration is future-ready, no direct ABDM API calls implemented yet
 
 ## 🧪 Testing
 
