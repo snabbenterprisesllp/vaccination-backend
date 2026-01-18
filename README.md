@@ -6,6 +6,19 @@ Production-ready backend API for Baby Immunization & Vaccination Records Managem
 
 A comprehensive vaccination tracking and management system for both children (0-18 years) and adults, built with Python, FastAPI, and Google Cloud Platform. This API enables parents, hospitals, and administrators to manage vaccination records securely with ABHA integration, automated reminders, and a unified beneficiary system.
 
+## 🧩 ABHA (ABDM) Sandbox Compliance – M1
+
+This project is currently in **ABHA M1 Sandbox phase** and is intended **only for testing and integration purposes**.
+
+- This is a **backend-only API service**
+- No public website or UI is exposed at this stage
+- All interactions happen via secure REST APIs
+- Swagger/OpenAPI documentation is available for review
+- No real patient data is used in sandbox mode
+
+🔒 **Note**: Production deployment, public website, and real user onboarding will be implemented only after successful sandbox validation and ABDM approvals.
+
+
 ## ✨ Key Features
 
 ### Core Functionality
