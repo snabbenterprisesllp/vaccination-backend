@@ -1,7 +1,7 @@
 """API v1 routes"""
 from fastapi import APIRouter
 
-from app.api.v1 import auth, otp_auth, children, vaccinations, vaccines, hospitals, documents, abha, auth_tabs, beneficiaries, reminders
+from app.api.v1 import auth, otp_auth, children, vaccinations, vaccines, hospitals, documents, abha, auth_tabs, beneficiaries, reminders, reports
 
 api_router = APIRouter()
 
@@ -23,4 +23,5 @@ api_router.include_router(hospitals.router, prefix="/hospitals", tags=["Hospital
 api_router.include_router(documents.router, prefix="/documents", tags=["Documents"])
 api_router.include_router(abha.router, prefix="/abha", tags=["ABHA Integration"])
 api_router.include_router(reminders.router, prefix="/reminders", tags=["Vaccination Reminders"])
+api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 
