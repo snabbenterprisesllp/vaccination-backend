@@ -1,6 +1,6 @@
 """Token Service for JWT operations"""
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from jose import JWTError, jwt
 import logging
 
@@ -68,7 +68,10 @@ class TokenService:
         role: str,
         login_type: str = "individual",
         hospital_id: Optional[int] = None,
-        hospital_role: Optional[str] = None
+        hospital_role: Optional[str] = None,
+        facility_ids: Optional[List[int]] = None,
+        facility_roles: Optional[Dict[int, str]] = None,
+        is_super_admin: bool = False
     ) -> Dict[str, str]:
         """
         Create both access and refresh tokens
@@ -78,16 +81,22 @@ class TokenService:
             mobile_number: Mobile number
             role: User role (for backward compatibility)
             login_type: "individual" or "hospital"
-            hospital_id: Hospital ID (for hospital users)
-            hospital_role: "admin", "doctor", or "staff" (for hospital users)
+            hospital_id: Hospital ID (for hospital users - legacy)
+            hospital_role: "admin", "doctor", or "staff" (for hospital users - legacy)
+            facility_ids: List of facility IDs user has access to (new RBAC)
+            facility_roles: Dict mapping facility_id to role (new RBAC)
+            is_super_admin: Whether user is SUPER_ADMIN (global scope)
         """
         token_data = {
             "user_id": user_id,
             "mobile_number": mobile_number,
             "role": role,  # Backward compatibility
             "login_type": login_type,
-            "hospital_id": hospital_id,
-            "hospital_role": hospital_role
+            "hospital_id": hospital_id,  # Legacy
+            "hospital_role": hospital_role,  # Legacy
+            "facility_ids": facility_ids or [],  # New RBAC
+            "facility_roles": facility_roles or {},  # New RBAC: {facility_id: role}
+            "is_super_admin": is_super_admin  # New RBAC
         }
         
         access_token = TokenService.create_access_token(token_data)
@@ -144,8 +153,11 @@ class TokenService:
             "mobile_number": payload.get("mobile_number"),
             "role": payload.get("role"),  # Backward compatibility
             "login_type": payload.get("login_type", "individual"),
-            "hospital_id": payload.get("hospital_id"),
-            "hospital_role": payload.get("hospital_role")
+            "hospital_id": payload.get("hospital_id"),  # Legacy
+            "hospital_role": payload.get("hospital_role"),  # Legacy
+            "facility_ids": payload.get("facility_ids", []),  # New RBAC
+            "facility_roles": payload.get("facility_roles", {}),  # New RBAC
+            "is_super_admin": payload.get("is_super_admin", False)  # New RBAC
         })
         
         return new_access_token

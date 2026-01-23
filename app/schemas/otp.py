@@ -1,6 +1,6 @@
 """OTP-based authentication schemas"""
 from pydantic import BaseModel, Field, field_validator
-import re
+from app.utils.validation import validate_mobile_number, validate_email, normalize_email
 
 
 class SendOTPRequest(BaseModel):
@@ -10,20 +10,11 @@ class SendOTPRequest(BaseModel):
     @field_validator('mobile_number')
     @classmethod
     def validate_mobile(cls, v: str) -> str:
-        """Validate mobile number format"""
-        # Remove any spaces, dashes, or parentheses
-        cleaned = re.sub(r'[\s\-\(\)]', '', v)
-        
-        # Check if it contains only digits and optional leading +
-        if not re.match(r'^\+?\d{10,15}$', cleaned):
-            raise ValueError('Invalid mobile number format. Use format: +919876543210 or 9876543210')
-        
-        # Ensure it starts with + for consistency
-        if not cleaned.startswith('+'):
-            # Assume Indian number if no country code
-            cleaned = '+91' + cleaned
-        
-        return cleaned
+        """Validate mobile number format using validation utility"""
+        is_valid, normalized, error_msg = validate_mobile_number(v, default_country='IN')
+        if not is_valid:
+            raise ValueError(error_msg or 'Invalid mobile number format')
+        return normalized
 
 
 class SendOTPResponse(BaseModel):
@@ -76,13 +67,24 @@ class CompleteRegistrationRequest(BaseModel):
     @field_validator('mobile_number')
     @classmethod
     def validate_mobile(cls, v: str) -> str:
-        """Validate and normalize mobile number"""
-        cleaned = re.sub(r'[\s\-\(\)]', '', v)
-        if not re.match(r'^\+?\d{10,15}$', cleaned):
-            raise ValueError('Invalid mobile number format')
-        if not cleaned.startswith('+'):
-            cleaned = '+91' + cleaned
-        return cleaned
+        """Validate and normalize mobile number using validation utility"""
+        is_valid, normalized, error_msg = validate_mobile_number(v, default_country='IN')
+        if not is_valid:
+            raise ValueError(error_msg or 'Invalid mobile number format')
+        return normalized
+    
+    @field_validator('email')
+    @classmethod
+    def validate_email_field(cls, v: str | None) -> str | None:
+        """Validate email if provided"""
+        if v is None or not v.strip():
+            return None
+        
+        is_valid, error_msg = validate_email(v.strip(), check_disposable=True)
+        if not is_valid:
+            raise ValueError(error_msg or 'Invalid email format')
+        
+        return normalize_email(v)
 
 
 class TokenRefreshRequest(BaseModel):
@@ -112,6 +114,9 @@ class UserOTPResponse(BaseModel):
     login_type: str | None = None  # "individual" or "hospital"
     hospital_id: str | None = None
     hospital_role: str | None = None  # "admin", "doctor", or "staff" (for hospital users)
+    facility_ids: list[int] | None = None  # List of facility IDs user has access to
+    facility_roles: dict[int, str] | None = None  # Mapping facility_id to role
+    is_super_admin: bool = False  # Global admin flag
     is_active: bool
     created_at: str
     

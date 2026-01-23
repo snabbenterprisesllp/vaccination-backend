@@ -87,3 +87,6 @@ async def get_immunization_report(
             detail=f"Failed to generate PDF report: {str(e)}"
         )
 
+
+
+

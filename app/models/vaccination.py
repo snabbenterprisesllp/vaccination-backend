@@ -34,8 +34,12 @@ class Vaccination(BaseModel):
     vaccination_time = Column(DateTime, nullable=True)
     status = Column(SQLEnum(VaccinationStatus), default=VaccinationStatus.COMPLETED, nullable=False)
     
-    # Hospital/clinic information
+    # Hospital/clinic information (legacy)
     hospital_id = Column(Integer, ForeignKey("hospitals.id"), nullable=True, index=True)
+    
+    # Facility information (new RBAC)
+    facility_id = Column(Integer, ForeignKey("facilities.id", ondelete="SET NULL"), nullable=True, index=True)
+    
     administered_by = Column(String(255), nullable=True)  # Doctor/nurse name
     recorded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # User who recorded this vaccination
     
@@ -73,7 +77,8 @@ class Vaccination(BaseModel):
     beneficiary = relationship("Beneficiary", back_populates="vaccinations")
     child = relationship("ChildProfile", back_populates="vaccinations")  # Legacy relationship
     vaccine = relationship("VaccineMaster")
-    hospital = relationship("Hospital", back_populates="vaccinations")
+    hospital = relationship("Hospital", back_populates="vaccinations")  # Legacy relationship
+    facility = relationship("Facility", back_populates="vaccinations")  # New RBAC relationship
     recorded_by = relationship("User", foreign_keys=[recorded_by_user_id])
     
     def __repr__(self):

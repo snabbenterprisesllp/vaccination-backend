@@ -11,6 +11,14 @@ from app.models.login_audit import LoginAudit
 from app.services.otp_service import OTPService
 from app.services.token_service import TokenService
 from app.core.redis import get_redis
+from app.utils.validation import (
+    validate_mobile_number,
+    normalize_mobile_number,
+    validate_email,
+    normalize_email,
+    mask_mobile,
+    mask_email
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +31,13 @@ class OTPAuthService:
     
     async def send_otp(self, mobile_number: str, request: Request = None) -> Dict[str, Any]:
         """Send OTP to mobile number"""
-        # Normalize mobile number (remove whitespace, ensure consistent format)
-        mobile_number = mobile_number.strip()
+        # Validate and normalize mobile number
+        is_valid, normalized_mobile, error_msg = validate_mobile_number(mobile_number, default_country='IN')
+        if not is_valid:
+            logger.warning(f"Invalid mobile number attempt: {self._mask_mobile(mobile_number)} - {error_msg}")
+            raise ValueError(error_msg or "Invalid mobile number")
+        
+        mobile_number = normalized_mobile
         
         redis = await get_redis()
         otp_service = OTPService(redis)
@@ -68,8 +81,13 @@ class OTPAuthService:
         request: Request = None
     ) -> Dict[str, Any]:
         """Verify OTP and login/register user"""
-        # Normalize mobile number (remove whitespace, ensure consistent format)
-        mobile_number = mobile_number.strip()
+        # Validate and normalize mobile number
+        is_valid, normalized_mobile, error_msg = validate_mobile_number(mobile_number, default_country='IN')
+        if not is_valid:
+            logger.warning(f"Invalid mobile number in OTP verification: {self._mask_mobile(mobile_number)} - {error_msg}")
+            raise ValueError(error_msg or "Invalid mobile number")
+        
+        mobile_number = normalized_mobile
         
         redis = await get_redis()
         otp_service = OTPService(redis)
@@ -98,7 +116,7 @@ class OTPAuthService:
                     "mobile_number": mobile_number
                 }
             
-            # Get hospital info if hospital user
+            # Get hospital info if hospital user (legacy)
             hospital_id = None
             hospital_role = None
             if user.login_type == LoginType.HOSPITAL:
@@ -115,14 +133,30 @@ class OTPAuthService:
                     hospital_id = hospital_user.hospital_id
                     hospital_role = hospital_user.hospital_role.value
             
+            # Get facility info (new RBAC)
+            facility_ids = []
+            facility_roles = {}
+            is_super_admin = False
+            if user.login_type == LoginType.HOSPITAL:
+                from app.models.facility_user import FacilityUser, FacilityRole
+                from app.core.rbac import get_user_facilities, is_super_admin as check_super_admin
+                
+                facilities = await get_user_facilities(user, self.db)
+                facility_ids = [f.facility_id for f in facilities if f.facility_id is not None]
+                facility_roles = {f.facility_id: f.facility_role.value for f in facilities if f.facility_id is not None}
+                is_super_admin = await check_super_admin(user, self.db)
+            
             # Existing user - issue tokens with login context
             tokens = TokenService.create_token_pair(
                 user_id=user.id,
                 mobile_number=user.mobile_number,
                 role=user.role.value,
                 login_type=user.login_type.value,
-                hospital_id=hospital_id,
-                hospital_role=hospital_role
+                hospital_id=hospital_id,  # Legacy
+                hospital_role=hospital_role,  # Legacy
+                facility_ids=facility_ids,  # New RBAC
+                facility_roles=facility_roles,  # New RBAC
+                is_super_admin=is_super_admin  # New RBAC
             )
             
             # Log the login
@@ -165,20 +199,41 @@ class OTPAuthService:
     ) -> Dict[str, Any]:
         """Complete user registration after OTP verification"""
         
-        # Check if user already exists by mobile
+        # Validate and normalize mobile number
+        is_valid, normalized_mobile, error_msg = validate_mobile_number(mobile_number, default_country='IN')
+        if not is_valid:
+            logger.warning(f"Invalid mobile number in registration: {self._mask_mobile(mobile_number)} - {error_msg}")
+            raise ValueError(error_msg or "Invalid mobile number")
+        
+        mobile_number = normalized_mobile
+        
+        # Check if user already exists by mobile (case-insensitive)
         existing_user = await self._get_user_by_mobile(mobile_number)
         if existing_user:
+            logger.warning(f"Registration attempt with existing mobile: {self._mask_mobile(mobile_number)}")
             raise ValueError("User already registered. Please login.")
         
-        # Check if email already exists (if provided)
+        # Validate and normalize email if provided
+        normalized_email = None
         if email:
-            from sqlalchemy import select
-            result = await self.db.execute(
-                select(User).where(User.email == email)
-            )
-            email_user = result.scalar_one_or_none()
-            if email_user:
-                raise ValueError(f"Email {email} is already registered. Please use a different email or leave it blank.")
+            email = email.strip()
+            if email:  # Only validate if not empty
+                is_email_valid, email_error = validate_email(email, check_disposable=True)
+                if not is_email_valid:
+                    logger.warning(f"Invalid email in registration: {mask_email(email)} - {email_error}")
+                    raise ValueError(email_error or "Invalid email format")
+                
+                normalized_email = normalize_email(email)
+                
+                # Check if email already exists (case-insensitive)
+                from sqlalchemy import select, func
+                result = await self.db.execute(
+                    select(User).where(func.lower(User.email) == normalized_email)
+                )
+                email_user = result.scalar_one_or_none()
+                if email_user:
+                    logger.warning(f"Registration attempt with existing email: {mask_email(normalized_email)}")
+                    raise ValueError("Email already registered")
         
         # Create new user
         # Convert role to uppercase to match enum
@@ -192,16 +247,20 @@ class OTPAuthService:
             logger.warning(f"Registration - Invalid role '{role_upper}', defaulting to PARENT")
             user_role = UserRole.PARENT
         
-        # Determine login_type based on role
-        # Legacy: if role is HOSPITAL, set login_type to HOSPITAL, otherwise INDIVIDUAL
-        login_type = LoginType.HOSPITAL if role_upper == 'HOSPITAL' else LoginType.INDIVIDUAL
+        # Hospital users cannot be created via this endpoint
+        # They must be created by SUPER_ADMIN through facility management
+        if role_upper == 'HOSPITAL':
+            raise ValueError("Hospital users cannot be registered through this endpoint. They must be created by a SUPER_ADMIN through facility management.")
+        
+        # Only INDIVIDUAL (parent) users can register through this endpoint
+        login_type = LoginType.INDIVIDUAL
         
         user = User(
             mobile_number=mobile_number,
             full_name=full_name,
             role=user_role,
             login_type=login_type,  # Set login type
-            email=email,
+            email=normalized_email,  # Use normalized email
             hospital_id=hospital_id,
             device_info=device_info,
             consent_given='Y' if consent_given else 'N',
@@ -279,6 +338,8 @@ class OTPAuthService:
     
     async def _get_user_by_mobile(self, mobile_number: str) -> Optional[User]:
         """Get user by mobile number"""
+        # Normalize mobile number for lookup
+        mobile_number = mobile_number.strip()
         result = await self.db.execute(
             select(User).where(User.mobile_number == mobile_number)
         )

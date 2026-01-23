@@ -3,9 +3,10 @@ Tab-based Authentication Endpoints
 
 Supports:
 - Individual (Parent/Guardian) registration and login
-- Hospital registration and login with role-based access
+- Hospital login (hospital users must be created by SUPER_ADMIN)
 
 EXTENDS existing OTP auth - does not replace it.
+Hospital registration is disabled - hospitals and hospital users must be created by SUPER_ADMIN through facility management.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -172,57 +173,8 @@ async def login_individual(
 # HOSPITAL AUTHENTICATION ENDPOINTS
 # ============================================================================
 
-@router.post("/register/hospital", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
-async def register_hospital(
-    request_data: HospitalRegisterRequest,
-    request: Request,
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Register hospital and create admin user
-    
-    This endpoint:
-    - Creates hospital record
-    - Creates admin user with login_type=HOSPITAL
-    - Creates HospitalUser mapping with role=ADMIN
-    - Returns tokens with hospital context
-    """
-    hospital_service = HospitalAuthService(db)
-    
-    try:
-        hospital_data = {
-            "hospital_name": request_data.hospital_name,
-            "hospital_code": request_data.hospital_code,
-            "hospital_type": request_data.hospital_type,
-            "address": request_data.address,
-            "city": request_data.city,
-            "state": request_data.state,
-            "pincode": request_data.pincode,
-            "email": request_data.email,
-            "phone": request_data.phone
-        }
-        
-        admin_data = {
-            "mobile_number": request_data.admin_mobile,
-            "admin_name": request_data.admin_name,
-            "admin_email": request_data.admin_email
-        }
-        
-        result = await hospital_service.register_hospital(
-            hospital_data=hospital_data,
-            admin_data=admin_data,
-            request=request
-        )
-        
-        return AuthResponse(**result)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
-        logger.error(f"Hospital registration failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Hospital registration failed: {str(e)}"
-        )
+# Hospital registration removed - hospitals and users must be created by SUPER_ADMIN
+# Use /facilities endpoint to create facilities and /facilities/{id}/users to add users
 
 
 @router.post("/login/hospital", response_model=AuthResponse, status_code=status.HTTP_200_OK)

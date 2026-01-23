@@ -6,6 +6,8 @@ from app.models.vaccination import Vaccination, VaccinationSchedule
 from app.models.vaccine_master import VaccineMaster
 from app.models.hospital import Hospital
 from app.models.hospital_user import HospitalUser, HospitalRole
+from app.models.facility import Facility
+from app.models.facility_user import FacilityUser, FacilityRole
 from app.models.document import Document
 from app.models.audit_log import AuditLog
 from app.models.abha_link import ABHALink
@@ -30,6 +32,9 @@ __all__ = [
     "Hospital",
     "HospitalUser",
     "HospitalRole",
+    "Facility",
+    "FacilityUser",
+    "FacilityRole",
     "Document",
     "AuditLog",
     "ABHALink",

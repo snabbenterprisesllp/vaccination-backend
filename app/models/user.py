@@ -61,8 +61,10 @@ class User(BaseModel):
     )
     audit_logs = relationship("AuditLog", back_populates="user")
     login_audits = relationship("LoginAudit", back_populates="user", cascade="all, delete-orphan")
-    # Hospital assignments (for hospital users)
+    # Hospital assignments (for hospital users) - legacy
     hospital_assignments = relationship("HospitalUser", back_populates="user", cascade="all, delete-orphan")
+    # Facility assignments (for facility users) - new RBAC system
+    facility_assignments = relationship("FacilityUser", back_populates="user", foreign_keys="FacilityUser.user_id", cascade="all, delete-orphan")
     # Beneficiaries (ADULT and CHILD)
     beneficiaries = relationship("Beneficiary", foreign_keys="Beneficiary.account_id", cascade="all, delete-orphan")
     

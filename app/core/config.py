@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_PER_MINUTE: int = 60
     
+    # SUPER_ADMIN Bootstrap
+    ALLOW_SUPER_ADMIN_SIGNUP: bool = False  # Set to true only during initial setup
+    SUPER_ADMIN_BOOTSTRAP_TOKEN: Optional[str] = None  # Secure token for bootstrap
+    
     # File Upload
     MAX_UPLOAD_SIZE_MB: int = 10
     ALLOWED_EXTENSIONS: List[str] = ["pdf", "jpg", "jpeg", "png"]
@@ -97,6 +101,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Ignore extra fields in .env file
 
 
 @lru_cache()
